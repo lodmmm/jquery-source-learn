@@ -5,10 +5,20 @@
 (function (jQuery) {
 	// 在 fn 上扩展的才是真正在实例里面可用的, 而在 fn 上扩展的会用到在构造函数上扩展的东西
 	// 所以先看这个会比较好, 到时候带着入参去看 $.data() 之类的方法
+
+	// 匹配大写字母
+	var rmultiDash = /([A-Z])/g;
+	// 匹配左右是大括号的
+	var rbrace = /^(?:\{.*\}|\[.*\])$/;
+
   jQuery.fn.extend({
 		data : function (key, value) {
+			var attr;
 			var data = null;
 			var elem = this[0];
+			var i = 0, l;
+			var parts;
+			var part;
 			// Gets all values
 			if (key === undefined) {
 				// 如果 length 为 0, 匹配的情况就是 selector 没有筛选到元素....
@@ -17,9 +27,46 @@
 					data = jQuery.data(elem);
 					// document, 
 					// todo $._data
-					if (elem.nodeType === 1 && jQuery._data(elem, 'parsedAttr')) {}
+					if (elem.nodeType === 1 && jQuery._data(elem, 'parsedAttr')) {
+						// 这里取到的是他身上挂着的所有属性
+						attr = elem.attributes;
+						for (l = attr.length; i < l; i ++) {
+							// 这里就取到了属性的名字
+							name = attr[i].name;
+
+							// 如果 'data-' 这个字段出现在了属性名的第 0 位
+							// 这时候说明是 data 属性噻。。
+							if (name.indexOf('data-') === 0) {
+								// 把 name 再次赋值为第 5 个字符开始的时候的那个字符
+								// 也就是说, 'data-again' => 'again'
+								name = jQuery.camelCase(name.substring(5));
+								dataAttr(elem, name, data[name]);
+							}
+						}
+						jQuery._data(elem, 'parsedAttr', true);
+					}
 				}
+				return data;
 			}
+
+			// 如果是 object 的话, 就递归一下
+			if (typeof key === 'object') {
+				return this.each(function () {
+					jQuery.data(this, key);
+				});
+			}
+
+			// 取出来 keys.split('.') 之后的前两位
+			parts = keys.split('.', 2);
+			// 对 parts[1] 的包装
+			parts[1] = parst[1] ? '.' + parts[1] : '';
+			
+			part = parts[1] + '!';
+
+			// todo 这里的 access 还需要继续看
+			return jQuery.access(this, function (value) {
+				if (data = this.triggerHandler()) {}
+			});
 		}
   });
 
@@ -143,5 +190,41 @@
 			return jQuery.data(elem, name, data, true);
 		}
 	});
+
+
+	// 调用时候 => dataAttr(elem, name, data[name]);
+	// @params : elem => 元素
+	// @params : name => data 后面那半截
+	// @params : data[name] => 根据 name 取到的 data 里面存的所有
+	function dataAttr (elem, key, data) {
+		// 如果没传入 data 或者 elem 直接是 document
+		if (data === undefined && elem.nodeType === 1) {
+			// key 里如果有大写字母的话, 先给大写字母前面加个 -
+			// 再把整个 key 字符串转换为 小写字母
+			// 最后再前面拼上 data- 这段字符
+			var name = 'data-' + key.replace(rmultiDash, '-$1').toLowerCase();
+			// 通过这个 'data-xxx' 找到在 elem 上挂着的整个东西。。
+			data = elem.getAttribute('name');
+			if (typeof data === 'string') {
+				try {
+					data = data === 'true' ? true : 
+						(data === 'false' ? false : 
+							(data === 'null' ? null : 
+								(jQuery.isNumberic(data) ? +data : 
+									(rbrace.test(data) ? jQuery.parse(data) : data))))
+				} catch (e) {
+					// do nothing
+				}
+
+				// 给这个 data 注册一下, 其实我觉得这里就只是存一下 cache
+				jQuery.data(elem, key, data);
+			} else {
+				data = undefined;
+			}
+		}
+
+		// 最后返回这个data
+		return data;
+	}
 })(jQuery);
 
